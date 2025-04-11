@@ -20,6 +20,8 @@ use Freshworkx\BmImageGallery\Resource\Collection\StaticFileCollection;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
+use TYPO3\CMS\Core\Pagination\ArrayPaginator;
+use TYPO3\CMS\Core\Pagination\SimplePagination;
 use TYPO3\CMS\Core\Resource\Collection\AbstractFileCollection;
 use TYPO3\CMS\Core\Resource\FileCollectionRepository;
 use TYPO3\CMS\Core\Resource\FileInterface;
@@ -67,7 +69,12 @@ class GalleryController extends ActionController
     {
         $queryParams = $this->request->getQueryParams();
         $identifier = $queryParams['tx_bmimagegallery_gallerylist']['show'] ?? 0;
-        $this->view->assign('fileCollection', $this->getCollectionInfo((int)$identifier, true));
+
+        $collectionInfo = $this->getCollectionInfo((int)$identifier, true);
+
+
+
+        $this->view->assign('fileCollection', $collectionInfo);
         return $this->htmlResponse();
     }
 
@@ -145,6 +152,19 @@ class GalleryController extends ActionController
         $maxItems = (int)$this->settings['maxItems'];
         if ($maxItems > 0) {
             return array_slice($files, 0, $maxItems);
+        } else {
+            $currentPage = $this->request->hasArgument('page')
+                ? (int)$this->request->getArgument('page')
+                : 1;
+            $itemsPerPage = 20;
+            $paginator = new ArrayPaginator($files, $currentPage, $itemsPerPage);
+            $pagination = new SimplePagination($paginator);
+
+            $this->view->assignMultiple([
+                'currentPage' => $currentPage,
+                'paginator' => $paginator,
+                'pagination' => $pagination
+            ]);
         }
 
         return $files;

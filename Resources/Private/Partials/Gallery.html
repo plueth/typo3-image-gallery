@@ -29,8 +29,22 @@
 		</f:if>
 	</div>
 
+	<ul class="pagination">
+		<f:for each="{pagination.allPageNumbers}" as="page">
+			<li class="page-item">
+				<f:link.action
+						action="detail"
+						arguments="{currentPageNumber:page, show : fileCollection.identifier}"
+						class="page-link {f:if(condition:'{currentPageNumber}=={page}',then:'active')}"
+				>
+					{page}
+				</f:link.action>
+			</li>
+		</f:for>
+	</ul>
+
 	<figure role="group" aria-labelledby="bmimagegallery-caption-title">
-		<f:for each="{fileCollection.items}" as="item">
+		<f:for each="{paginator.paginatedItems}" as="item">
 			<f:switch expression="{item.properties.type}">
 				<f:case value="2">
 					<f:render partial="Image" arguments="{item: item, settings: settings}"/>
@@ -41,6 +55,20 @@
 			</f:switch>
 		</f:for>
 	</figure>
+
+	<ul class="pagination">
+		<f:for each="{pagination.allPageNumbers}" as="page">
+			<li class="page-item">
+				<f:link.action
+						action="detail"
+						arguments="{currentPageNumber:page}"
+						class="page-link {f:if(condition:'{currentPageNumber}=={page}',then:'active')}"
+				>
+					{page}
+				</f:link.action>
+			</li>
+		</f:for>
+	</ul>
 </div>
 
 </html>
