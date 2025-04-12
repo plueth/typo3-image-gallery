@@ -48,3 +48,10 @@ plugin.tx_bmimagegallery {
         }
     }
 }
+config.pageTitleProviders {
+    gallery {
+        provider = Freshworkx\BmImageGallery\PageTitle\GalleryPageTitleProvider
+        before = altPageTitle,record,seo
+    }
+}
+

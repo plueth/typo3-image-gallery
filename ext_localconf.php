@@ -14,7 +14,7 @@ ExtensionUtility::configurePlugin(
     'BmImageGallery',
     'GalleryList',
     [
-        GalleryController::class => 'list,detail'
+        GalleryController::class => 'list,detail,header'
     ],
     [],
     ExtensionUtility::PLUGIN_TYPE_CONTENT_ELEMENT
@@ -35,6 +35,16 @@ ExtensionUtility::configurePlugin(
     'SelectedGallery',
     [
         GalleryController::class => 'gallery'
+    ],
+    [],
+    ExtensionUtility::PLUGIN_TYPE_CONTENT_ELEMENT
+);
+
+ExtensionUtility::configurePlugin(
+    'BmImageGallery',
+    'Header',
+    [
+        GalleryController::class => 'header'
     ],
     [],
     ExtensionUtility::PLUGIN_TYPE_CONTENT_ELEMENT

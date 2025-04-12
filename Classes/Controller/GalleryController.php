@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace Freshworkx\BmImageGallery\Controller;
 
 use Exception;
+use Freshworkx\BmImageGallery\PageTitle\GalleryPageTitleProvider;
 use Freshworkx\BmImageGallery\Resource\Collection\CategoryBasedFileCollection;
 use Freshworkx\BmImageGallery\Resource\Collection\FolderBasedFileCollection;
 use Freshworkx\BmImageGallery\Resource\Collection\StaticFileCollection;
@@ -35,7 +36,8 @@ class GalleryController extends ActionController
     public function __construct(
         private readonly FileCollectionRepository $fileCollectionRepository,
         private readonly FileRepository $fileRepository,
-        private readonly LoggerInterface $logger
+        private readonly LoggerInterface $logger,
+        private readonly GalleryPageTitleProvider $galleryPageTitleProvider
     ) {
     }
 
@@ -168,5 +170,19 @@ class GalleryController extends ActionController
         }
 
         return $files;
+    }
+
+    public function headerAction(): ResponseInterface
+    {
+        $title = 'Galerie';
+        $queryParams = $this->request->getQueryParams();
+        $identifier = $queryParams['tx_bmimagegallery_gallerylist']['show'] ?? 0;
+        if($identifier !== 0) {
+            $collectionInfo = $this->getCollectionInfo((int)$identifier, false);
+            $title = 'Galerie - ' . $collectionInfo['title'];
+        }
+        $this->galleryPageTitleProvider->setTitle($title);
+        $this->view->assign('title', $title);
+        return $this->htmlResponse();
     }
 }

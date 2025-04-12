@@ -28,6 +28,14 @@ foreach ($plugins as $pluginName) {
     );
 }
 
+$pluginSignatureKing = ExtensionUtility::registerPlugin(
+    'BmImageGallery',
+    'Header',
+    'BmImageGallery-Header',
+    'bm-image-gallery'
+);
+
+
 $GLOBALS['TCA']['tt_content']['types']['bmimagegallery_gallerylist']['columnsOverrides'] = [
     'file_collections' => [
         'config' => [
