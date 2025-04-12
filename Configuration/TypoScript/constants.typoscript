@@ -15,7 +15,9 @@ plugin.tx_bmimagegallery {
 
     settings {
         list {
-            showCount = 1
+            showCount = 1,
+            showAllAvailableCollections = 0
+            storagePid =
         }
 
         gallery {

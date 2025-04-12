@@ -23,6 +23,8 @@ plugin.tx_bmimagegallery {
     settings {
         list {
             showCount = {$plugin.tx_bmimagegallery.settings.list.showCount}
+            showAllAvailableCollections = {$plugin.tx_bmimagegallery.settings.list.showAllAvailableCollections}
+            storagePid = {$plugin.tx_bmimagegallery.settings.list.storagePid}
         }
 
         gallery {

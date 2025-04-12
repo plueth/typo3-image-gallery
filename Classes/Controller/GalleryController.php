@@ -18,12 +18,14 @@ use Freshworkx\BmImageGallery\PageTitle\GalleryPageTitleProvider;
 use Freshworkx\BmImageGallery\Resource\Collection\CategoryBasedFileCollection;
 use Freshworkx\BmImageGallery\Resource\Collection\FolderBasedFileCollection;
 use Freshworkx\BmImageGallery\Resource\Collection\StaticFileCollection;
+use Freshworkx\BmImageGallery\Resource\GalleryCollectionRepository;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
 use TYPO3\CMS\Core\Pagination\ArrayPaginator;
 use TYPO3\CMS\Core\Pagination\SimplePagination;
 use TYPO3\CMS\Core\Resource\Collection\AbstractFileCollection;
+use TYPO3\CMS\Core\Resource\Exception\ResourceDoesNotExistException;
 use TYPO3\CMS\Core\Resource\FileCollectionRepository;
 use TYPO3\CMS\Core\Resource\FileInterface;
 use TYPO3\CMS\Core\Resource\FileRepository;
@@ -34,22 +36,36 @@ use TYPO3\CMS\Frontend\Resource\FileCollector;
 class GalleryController extends ActionController
 {
     public function __construct(
-        private readonly FileCollectionRepository $fileCollectionRepository,
-        private readonly FileRepository $fileRepository,
-        private readonly LoggerInterface $logger,
+        private readonly GalleryCollectionRepository $galleryCollectionRepository,
+        private readonly FileRepository           $fileRepository,
+        private readonly LoggerInterface          $logger,
         private readonly GalleryPageTitleProvider $galleryPageTitleProvider
     ) {
     }
 
+    /**
+     * @throws \Doctrine\DBAL\Exception
+     */
     public function listAction(): ResponseInterface
     {
-        $collectionInfos = [];
-        $currentContentObject = $this->request->getAttribute('currentContentObject');
+        $fileCollections = [];
+        if($this->settings['list']['showAllAvailableCollections'] === '1') {
+            $storagePid = $this->settings['list']['storagePid'] ?? 0;
+            $fileCollections = $this->galleryCollectionRepository->findByPid((int)$storagePid);
+        } else {
+            $currentContentObject = $this->request->getAttribute('currentContentObject');
+            $collections = GeneralUtility::trimExplode(',', $currentContentObject->data['file_collections'], true);
+            foreach ($collections as $collectionUid) {
+                $fileCollection = $this->findByUid((int)$collectionUid);
+                if($fileCollection !== null) {
+                    $fileCollections[] = $fileCollection;
+                }
 
-        // @extensionScannerIgnoreLine
-        $collections = GeneralUtility::trimExplode(',', $currentContentObject->data['file_collections'], true);
-        foreach ($collections as $collectionUid) {
-            $collectionInfo = $this->getCollectionInfo((int)$collectionUid);
+            }
+        }
+        $collectionInfos = [];
+        foreach ($fileCollections as $fileCollection) {
+            $collectionInfo = $this->getCollectionInfo($fileCollection, false);
             if ($collectionInfo !== []) {
                 $collectionInfos[] = $collectionInfo;
             }
@@ -61,9 +77,9 @@ class GalleryController extends ActionController
 
     public function galleryAction(): ResponseInterface
     {
-        // @extensionScannerIgnoreLine
         $identifier = $this->request->getAttribute('currentContentObject')->data['file_collections'];
-        $this->view->assign('fileCollection', $this->getCollectionInfo((int)$identifier, true));
+        $fileCollection = $this->findByUid((int)$identifier);
+        $this->view->assign('fileCollection', $this->getCollectionInfo($fileCollection ,true));
         return $this->htmlResponse();
     }
 
@@ -72,60 +88,18 @@ class GalleryController extends ActionController
         $queryParams = $this->request->getQueryParams();
         $identifier = $queryParams['tx_bmimagegallery_gallerylist']['show'] ?? 0;
 
-        $collectionInfo = $this->getCollectionInfo((int)$identifier, true);
-
-
+        $fileCollection = $this->findByUid((int)$identifier);
+        $collectionInfo = $this->getCollectionInfo($fileCollection, true);
 
         $this->view->assign('fileCollection', $collectionInfo);
         return $this->htmlResponse();
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    protected function getCollectionInfo(int $identifier, bool $withItems = false): array
+    protected function findByUid(int $identifier): ?AbstractFileCollection
     {
         try {
-            /** @var CategoryBasedFileCollection|FolderBasedFileCollection|StaticFileCollection|null $fileCollection */
-            $fileCollection = $this->fileCollectionRepository->findByUid($identifier);
-
-            // return if collection not found
-            if ($fileCollection === null) {
-                return [];
-            }
-
-            // load contents and get items
-            $fileCollection->loadContents();
-            $items = $fileCollection->getItems();
-
-            // return if collection is empty
-            if (count($items) === 0) {
-                return [];
-            }
-
-            // gallery description with fallback to description of collection
-            $description = ($fileCollection->getGalleryDescription() !== '') ? $fileCollection->getGalleryDescription() : $fileCollection->getDescription();
-
-            // preview image with fallback to first image of collection (old behavior)
-            $previewImage = $this->fileRepository->findByRelation(
-                'sys_file_collection',
-                'bm_image_gallery_preview_image',
-                $fileCollection->getUid()
-            );
-            $previewImage = ($previewImage === []) ? reset($items) : reset($previewImage);
-
-            // return infos
-            return [
-                'identifier' => $fileCollection->getUid(),
-                'itemCount' => count($items),
-                'title' => $fileCollection->getTitle(),
-                'location' => $fileCollection->getGalleryLocation(),
-                'description' => $description,
-                'date' => $fileCollection->getGalleryDate(),
-                'previewImage' => $previewImage,
-                'items' => ($withItems) ? $this->sortAndLimitItems($fileCollection) : [],
-            ];
-        } catch (Exception $exception) {
+            return $this->galleryCollectionRepository->findByUid($identifier);
+        } catch (ResourceDoesNotExistException $exception) {
             $this->logger->log(LogLevel::ERROR, $exception->getMessage());
             $this->logger->log(
                 LogLevel::WARNING,
@@ -134,9 +108,51 @@ class GalleryController extends ActionController
                     $identifier
                 )
             );
+        }
+        return null;
+    }
 
+    /**
+     * @return array<string, mixed>
+     */
+    protected function getCollectionInfo($fileCollection, bool $withItems = false): array
+    {
+        // return if collection not found
+        if ($fileCollection === null) {
             return [];
         }
+
+        // load contents and get items
+        $fileCollection->loadContents();
+        $items = $fileCollection->getItems();
+
+        // return if collection is empty
+        if (count($items) === 0) {
+            return [];
+        }
+
+        // gallery description with fallback to description of collection
+        $description = ($fileCollection->getGalleryDescription() !== '') ? $fileCollection->getGalleryDescription() : $fileCollection->getDescription();
+
+        // preview image with fallback to first image of collection (old behavior)
+        $previewImage = $this->fileRepository->findByRelation(
+            'sys_file_collection',
+            'bm_image_gallery_preview_image',
+            $fileCollection->getUid()
+        );
+        $previewImage = ($previewImage === []) ? reset($items) : reset($previewImage);
+
+        // return infos
+        return [
+            'identifier' => $fileCollection->getUid(),
+            'itemCount' => count($items),
+            'title' => $fileCollection->getTitle(),
+            'location' => $fileCollection->getGalleryLocation(),
+            'description' => $description,
+            'date' => $fileCollection->getGalleryDate(),
+            'previewImage' => $previewImage,
+            'items' => ($withItems) ? $this->sortAndLimitItems($fileCollection) : [],
+        ];
     }
 
     /**
@@ -178,7 +194,8 @@ class GalleryController extends ActionController
         $queryParams = $this->request->getQueryParams();
         $identifier = $queryParams['tx_bmimagegallery_gallerylist']['show'] ?? 0;
         if($identifier !== 0) {
-            $collectionInfo = $this->getCollectionInfo((int)$identifier, false);
+            $fileCollection = $this->findByUid((int)$identifier);
+            $collectionInfo = $this->getCollectionInfo($fileCollection, false);
             $title = 'Galerie - ' . $collectionInfo['title'];
         }
         $this->galleryPageTitleProvider->setTitle($title);
